@@ -25,7 +25,7 @@ sudo apt install yt-dlp ffmpeg gir1.2-gst-plugins-bad-1.0 gstreamer1.0-plugins-b
 ## Установка
 
 ```bash
-git clone https://github.com/OWNER/hanabi-wallpaper-picker.git
+git clone https://github.com/Ekrindso/hanabi-wallpaper-picker.git
 cd hanabi-wallpaper-picker
 ./install.sh
 ```
@@ -54,7 +54,7 @@ A GNOME Shell extension to pick, search and download video wallpapers for [Hanab
 **Install:**
 
 ```bash
-git clone https://github.com/OWNER/hanabi-wallpaper-picker.git
+git clone https://github.com/Ekrindso/hanabi-wallpaper-picker.git
 cd hanabi-wallpaper-picker && ./install.sh
 ```
 

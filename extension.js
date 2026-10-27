@@ -12,18 +12,21 @@ import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 // кликом (пишем ключ video-path в настройки Hanabi, он подхватывает сам).
 
 const HANABI = "io.github.jeffshee.hanabi-extension";
+const HANABI_UUID = "hanabi-extension@jeffshee.github.io";
 const RU = GLib.get_language_names().some((l) => l.startsWith("ru"));
 const T = RU ? {
     title: "Видео-обои", random: "🎲  Случайные обои", empty: "Папка пуста - положи видео в Видео/Обои",
     sound: "Звук", pause: "Пауза под окнами на весь экран", folder: "Открыть папку с обоями",
     prefs: "Настройки Hanabi", search: "Найти обои на YouTube…", nothing: "Ничего не нашлось",
     done: "Готово, обои поставлены", notify: "Обои", noHanabi: "Hanabi не установлен",
+    getHanabi: "Установить Hanabi…", needTools: (t) => `Для поиска установи: ${t}`,
     searching: (q) => `Ищу «${q}»…`, downloading: (t) => `Скачиваю «${t}»…`, failed: (t) => `Не удалось скачать «${t}»`,
 } : {
     title: "Video wallpapers", random: "🎲  Random wallpaper", empty: "Folder is empty - put videos into Videos/Wallpapers",
     sound: "Sound", pause: "Pause under maximized/fullscreen windows", folder: "Open wallpapers folder",
     prefs: "Hanabi settings", search: "Search wallpapers on YouTube…", nothing: "Nothing found",
     done: "Done, wallpaper applied", notify: "Wallpaper", noHanabi: "Hanabi is not installed",
+    getHanabi: "Get Hanabi…", needTools: (t) => `To search, install: ${t}`,
     searching: (q) => `Searching “${q}”…`, downloading: (t) => `Downloading “${t}”…`, failed: (t) => `Failed to download “${t}”`,
 };
 const DIR = GLib.build_filenamev([GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_VIDEOS) ?? GLib.get_home_dir(),
@@ -32,19 +35,34 @@ const DIR = GLib.build_filenamev([GLib.get_user_special_dir(GLib.UserDirectory.D
 let FETCH = null;
 const VIDEO = /\.(mp4|webm|mkv|mov|avi|m4v|gif)$/i;
 
+// Схема Hanabi: из системных схем, из ~/.local/share/glib-2.0/schemas (make install)
+// или из папки schemas самого Hanabi (установка с extensions.gnome.org).
 function hanabiSettings() {
-    const dir = GLib.build_filenamev([GLib.get_user_data_dir(), "glib-2.0", "schemas"]);
-    try {
-        const src = Gio.SettingsSchemaSource.new_from_directory(dir, Gio.SettingsSchemaSource.get_default(), false);
-        const schema = src.lookup(HANABI, true);
-        return schema ? new Gio.Settings({ settings_schema: schema }) : null;
-    } catch (_) {
-        return null;
+    const dirs = [
+        GLib.build_filenamev([GLib.get_user_data_dir(), "glib-2.0", "schemas"]),
+        GLib.build_filenamev([GLib.get_user_data_dir(), "gnome-shell", "extensions", HANABI_UUID, "schemas"]),
+        GLib.build_filenamev(["/usr/share/gnome-shell/extensions", HANABI_UUID, "schemas"]),
+    ];
+    let schema = Gio.SettingsSchemaSource.get_default()?.lookup(HANABI, true) ?? null;
+    for (const dir of dirs) {
+        if (schema)
+            break;
+        if (!GLib.file_test(GLib.build_filenamev([dir, "gschemas.compiled"]), GLib.FileTest.EXISTS))
+            continue;
+        try {
+            const src = Gio.SettingsSchemaSource.new_from_directory(dir, Gio.SettingsSchemaSource.get_default(), false);
+            schema = src.lookup(HANABI, false);
+        } catch (_) {}
     }
+    return schema ? new Gio.Settings({ settings_schema: schema }) : null;
 }
+
+// Чего не хватает для поиска и скачивания.
+const missingTools = () => ["yt-dlp", "ffmpeg", "python3"].filter((p) => !GLib.find_program_in_path(p));
 
 function listVideos() {
     const out = [];
+    GLib.mkdir_with_parents(DIR, 0o755);
     try {
         const en = Gio.File.new_for_path(DIR).enumerate_children("standard::name,standard::type", Gio.FileQueryInfoFlags.NONE, null);
         let info;
@@ -90,7 +108,7 @@ const PickerButton = GObject.registerClass(
 class PickerButton extends PanelMenu.Button {
     _init(settings) {
         super._init(0.5, "Wallpaper Picker");
-        this._settings = settings;
+        this._settings = settings ?? hanabiSettings();
         this.add_child(new St.Icon({ icon_name: "image-x-generic-symbolic", style_class: "system-status-icon" }));
         // Меню строим заново при каждом открытии - видео в папке могли поменяться.
         this.menu.connect("open-state-changed", (_m, open) => open && this._build());
@@ -99,9 +117,14 @@ class PickerButton extends PanelMenu.Button {
 
     _build() {
         this.menu.removeAll();
+        // Hanabi могли поставить уже после входа - ищем заново, пока не найдём.
+        this._settings ??= hanabiSettings();
         const s = this._settings;
         if (!s) {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem(T.noHanabi, { reactive: false }));
+            const link = new PopupMenu.PopupMenuItem(T.getHanabi);
+            link.connect("activate", () => Gio.AppInfo.launch_default_for_uri("https://github.com/jeffshee/gnome-ext-hanabi", null));
+            this.menu.addMenuItem(link);
             return;
         }
         this._buildSearch();
@@ -192,6 +215,13 @@ class PickerButton extends PanelMenu.Button {
         entry.set_text(this._query ?? "");
         row.add_child(entry);
         this.menu.addMenuItem(row);
+        const missing = missingTools();
+        if (missing.length) {
+            entry.reactive = false;
+            entry.opacity = 120;
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(T.needTools(missing.join(", ")), { reactive: false }));
+            return;
+        }
         if (this.menu.isOpen)
             GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
                 global.stage.set_key_focus(entry);
@@ -232,7 +262,7 @@ class PickerButton extends PanelMenu.Button {
 export default class WallpaperPickerExtension extends Extension {
     enable() {
         FETCH = GLib.build_filenamev([this.path, "wallpaper-fetch"]);
-        this._button = new PickerButton(hanabiSettings());
+        this._button = new PickerButton(null);
         Main.panel.addToStatusArea(this.uuid, this._button, 1, "right");
     }
 

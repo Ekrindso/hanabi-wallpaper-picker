@@ -13,7 +13,7 @@
 
 ## Требования
 
-- GNOME Shell 50
+- GNOME Shell 45–50
 - Установленный [Hanabi](https://github.com/jeffshee/gnome-ext-hanabi)
 - `yt-dlp`, `ffmpeg`, `python3`
 - Для аппаратного декодирования в Hanabi: `gir1.2-gst-plugins-bad-1.0`, `gstreamer1.0-plugins-bad`
@@ -25,15 +25,16 @@ sudo apt install yt-dlp ffmpeg gir1.2-gst-plugins-bad-1.0 gstreamer1.0-plugins-b
 ## Установка
 
 ```bash
-git clone https://github.com/OWNER/hanabi-wallpaper-picker.git \
-  ~/.local/share/gnome-shell/extensions/hanabi-wallpaper-picker@ekrindso
+git clone https://github.com/OWNER/hanabi-wallpaper-picker.git
+cd hanabi-wallpaper-picker
+./install.sh
 ```
 
-Перезайдите в сеанс и включите расширение:
+Скрипт скопирует расширение, проверит зависимости (подскажет команду для apt, dnf или pacman) и включит его. После этого перезайдите в сеанс.
 
-```bash
-gnome-extensions enable hanabi-wallpaper-picker@ekrindso
-```
+Если чего-то не хватает, расширение не сломается, а подскажет прямо в меню: «Hanabi не установлен» или «Для поиска установи: yt-dlp».
+
+> `yt-dlp` из репозиториев дистрибутива бывает устаревшим. Если YouTube перестал скачиваться, обновите его: `pipx install yt-dlp` или `pipx upgrade yt-dlp`.
 
 Совет: чтобы на панели не было двух значков, скройте собственное меню Hanabi в его настройках («Show Panel Menu»).
 
@@ -48,9 +49,16 @@ A GNOME Shell extension to pick, search and download video wallpapers for [Hanab
 - 🎲 Random wallpaper.
 - Toggles for sound and for pausing under maximized/fullscreen windows.
 
-**Requirements:** GNOME Shell 50, Hanabi, `yt-dlp`, `ffmpeg`, `python3` (plus `gir1.2-gst-plugins-bad-1.0` for hardware decoding in Hanabi).
+**Requirements:** GNOME Shell 45–50, Hanabi, `yt-dlp`, `ffmpeg`, `python3` (plus `gir1.2-gst-plugins-bad-1.0` for hardware decoding in Hanabi).
 
-**Install:** clone into `~/.local/share/gnome-shell/extensions/hanabi-wallpaper-picker@ekrindso`, log out and back in, then run `gnome-extensions enable hanabi-wallpaper-picker@ekrindso`.
+**Install:**
+
+```bash
+git clone https://github.com/OWNER/hanabi-wallpaper-picker.git
+cd hanabi-wallpaper-picker && ./install.sh
+```
+
+Then log out and back in. Missing pieces are reported right in the menu ("Hanabi is not installed", "To search, install: yt-dlp"). If YouTube downloads break, update yt-dlp (`pipx upgrade yt-dlp`).
 
 The menu language follows the system locale (Russian or English).
 

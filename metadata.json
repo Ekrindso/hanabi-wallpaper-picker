@@ -2,6 +2,13 @@
   "uuid": "hanabi-wallpaper-picker@ekrindso",
   "name": "Hanabi Wallpaper Picker",
   "description": "Pick, search and download video wallpapers for Hanabi right from the top panel.",
-  "shell-version": ["50"],
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50"
+  ],
   "url": "https://github.com/OWNER/hanabi-wallpaper-picker"
 }

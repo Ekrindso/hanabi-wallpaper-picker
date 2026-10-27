@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+# Поиск и скачивание видео-обоев с YouTube для wallpaper-picker@local.
+#   wallpaper-fetch <папка> search <запрос>   -> JSON [{id, title, duration}]
+#   wallpaper-fetch <папка> get <id>          -> путь к скачанному файлу (последняя строка)
+import json, os, re, subprocess, sys, urllib.request
+from concurrent.futures import ThreadPoolExecutor
+
+DIR = sys.argv.pop(1)   # папка обоев - первым аргументом от расширения
+MAX_LEN = 600       # длинные «8 часов звёзд» не годятся - только ролики до 10 минут
+CLIP = 180          # из ролика берём первые 3 минуты (обои крутятся по кругу)
+THUMBS = os.path.expanduser("~/.cache/wallpaper-picker")
+YT = ["yt-dlp", "--no-update", "--no-warnings"]
+
+def search(q):
+    out = subprocess.run(YT + ["--flat-playlist", "-J", f"ytsearch25:{q} live wallpaper"],
+                         capture_output=True, text=True, timeout=60).stdout
+    res = []
+    for e in json.loads(out).get("entries", []):
+        d = e.get("duration") or 0
+        if 0 < d <= MAX_LEN:
+            res.append({"id": e["id"], "title": e.get("title", ""), "duration": int(d)})
+    res = res[:10]
+    os.makedirs(THUMBS, exist_ok=True)
+    def thumb(r):
+        f = os.path.join(THUMBS, r["id"] + ".jpg")
+        try:
+            if not os.path.exists(f):
+                urllib.request.urlretrieve(f"https://i.ytimg.com/vi/{r['id']}/mqdefault.jpg", f)
+            r["thumb"] = f
+        except Exception:
+            pass
+    with ThreadPoolExecutor(8) as ex:
+        list(ex.map(thumb, res))
+    print(json.dumps(res, ensure_ascii=False))
+
+# Превью своих видео: кадр с 1-й секунды, в кэш. Печатает JSON {путь: превью}.
+def local_thumbs(paths):
+    os.makedirs(THUMBS, exist_ok=True)
+    out = {}
+    for v in paths:
+        f = os.path.join(THUMBS, "local-" + re.sub(r"\W+", "_", os.path.basename(v)) + ".jpg")
+        if not os.path.exists(f) or os.path.getmtime(f) < os.path.getmtime(v):
+            subprocess.run(["ffmpeg", "-v", "quiet", "-y", "-ss", "1", "-i", v, "-frames:v", "1",
+                            "-vf", "scale=320:-2", f], timeout=30)
+        if os.path.exists(f):
+            out[v] = f
+    print(json.dumps(out, ensure_ascii=False))
+
+def get(vid):
+    os.makedirs(DIR, exist_ok=True)
+    # Целиком (ролики короткие) родным загрузчиком в 8 потоков: --download-sections
+    # отдавал загрузку ffmpeg'у одним медленным потоком. Режем потом, локально.
+    tmp = os.path.join(DIR, ".dl-" + vid + ".%(ext)s")
+    p = subprocess.run(YT + ["-f", "bv*[height<=2160][fps<=60]/bv*", "-N", "8",
+                             "--print", "after_move:filepath", "--print", "title", "-o", tmp, "--", vid],
+                       capture_output=True, text=True, timeout=900)
+    lines = p.stdout.strip().splitlines()
+    if p.returncode or len(lines) < 2 or not os.path.exists(lines[-1]):
+        sys.stderr.write(p.stderr[-500:])
+        sys.exit(1)
+    title, src = lines[0], lines[-1]
+    name = re.sub(r'[\\/:*?"<>|#]+', " ", title).strip()[:80] or vid
+    dst = os.path.join(DIR, name + os.path.splitext(src)[1])
+    cut = subprocess.run(["ffmpeg", "-v", "quiet", "-y", "-i", src, "-t", str(CLIP), "-c", "copy", "-an", dst])
+    if cut.returncode == 0 and os.path.exists(dst):
+        os.remove(src)
+    else:
+        os.replace(src, dst)
+    print(dst)
+
+if __name__ == "__main__":
+    {"search": lambda: search(" ".join(sys.argv[2:])), "get": lambda: get(sys.argv[2]),
+     "thumbs": lambda: local_thumbs(sys.argv[2:])}[sys.argv[1]]()

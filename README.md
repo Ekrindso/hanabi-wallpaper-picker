@@ -19,7 +19,7 @@
 - Для аппаратного декодирования в Hanabi: `gir1.2-gst-plugins-bad-1.0`, `gstreamer1.0-plugins-bad`
 
 ```bash
-sudo apt install yt-dlp ffmpeg gir1.2-gst-plugins-bad-1.0 gstreamer1.0-plugins-bad
+sudo apt install yt-dlp ffmpeg gir1.2-gst-plugins-bad-1.0 gstreamer1.0-plugins-bad gstreamer1.0-gtk4
 ```
 
 ## Установка

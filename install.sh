@@ -18,7 +18,7 @@ for p in yt-dlp ffmpeg python3; do command -v "$p" >/dev/null || missing+=("$p")
 if [ ${#missing[@]} -gt 0 ]; then
     echo
     echo "Не хватает / Missing: ${missing[*]}"
-    if command -v apt >/dev/null; then echo "  sudo apt install ${missing[*]} gir1.2-gst-plugins-bad-1.0 gstreamer1.0-plugins-bad"
+    if command -v apt >/dev/null; then echo "  sudo apt install ${missing[*]} gir1.2-gst-plugins-bad-1.0 gstreamer1.0-plugins-bad gstreamer1.0-gtk4"
     elif command -v dnf >/dev/null; then echo "  sudo dnf install ${missing[*]} gstreamer1-plugins-bad-free"
     elif command -v pacman >/dev/null; then echo "  sudo pacman -S ${missing[*]} gst-plugins-bad"
     fi

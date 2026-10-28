@@ -10,6 +10,17 @@
 - Поиск обоев на YouTube прямо из меню. Клик по результату скачивает видео (до 4K, первые 3 минуты) и сразу ставит его.
 - 🎲 Случайные обои.
 - Переключатели звука и паузы под развёрнутыми окнами (в играх видео не тратит FPS).
+- Несколько мониторов: своё видео на каждый экран (нужна доработка Hanabi, см. ниже).
+
+## Своё видео на каждом мониторе
+
+Сам Hanabi показывает одно видео на всех экранах. Доработка из папки `hanabi-patch` даёт каждому монитору свой плеер (без звука, звук идёт только от общего видео):
+
+```bash
+./hanabi-patch/install.sh
+```
+
+После перезахода в меню появится строка «Куда: Все мониторы / Монитор 1 / Монитор 2…» (только при двух и более мониторах). Обновление Hanabi затрёт доработку — просто запустите скрипт снова.
 
 ## Требования
 
@@ -48,6 +59,7 @@ A GNOME Shell extension to pick, search and download video wallpapers for [Hanab
 - Search YouTube from the menu; clicking a result downloads it (up to 4K, first 3 minutes) and applies it.
 - 🎲 Random wallpaper.
 - Toggles for sound and for pausing under maximized/fullscreen windows.
+- Multiple monitors: a different video on each screen. Requires patching Hanabi with `./hanabi-patch/install.sh` (re-run after Hanabi updates); extra monitors play muted.
 
 **Requirements:** GNOME Shell 45–50, Hanabi, `yt-dlp`, `ffmpeg`, `python3` (plus `gir1.2-gst-plugins-bad-1.0` for hardware decoding in Hanabi).
 

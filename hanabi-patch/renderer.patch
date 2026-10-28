@@ -1,0 +1,113 @@
+--- a/renderer/renderer.js	2026-10-29 03:11:39.245136083 +0500
++++ b/renderer/renderer.js	2026-10-29 03:11:39.245741709 +0500
+@@ -52,6 +52,12 @@
+ var mute = extSettings?.get_boolean("mute") ?? false;
+ var nohide = false;
+ var videoPath = extSettings?.get_string("video-path") ?? "";
++// Локально: своё видео для отдельных мониторов (ключ monitor-video-paths).
++var monitorVideoPaths = extSettings?.get_strv("monitor-video-paths") ?? [];
++var ownPath = (index) => {
++  const path = monitorVideoPaths[index] ?? "";
++  return path && path !== videoPath && haveGstPlay && !forceMediaFile ? path : "";
++};
+ var volume = (extSettings?.get_int("volume") ?? 50) / 100;
+ var randomStartPosition = extSettings?.get_boolean("random-start-position") ?? false;
+ var changeWallpaper = extSettings?.get_boolean("change-wallpaper") ?? true;
+@@ -110,6 +116,7 @@
+       GLib.log_set_debug_enabled(isDebugMode);
+       this.hanabiWindows = [];
+       this.pictures = [];
++      this.extraPlayers = [];
+       this.sharedPaintable = null;
+       this.gstImplName = "";
+       this.playing = false;
+@@ -147,6 +154,11 @@
+           case "video-path":
+             videoPath = settings.get_string(key);
+             this.setFilePath(videoPath);
++            this.maybeRestartForMonitors();
++            break;
++          case "monitor-video-paths":
++            monitorVideoPaths = settings.get_strv(key);
++            this.maybeRestartForMonitors();
+             break;
+           case "mute":
+             mute = settings.get_boolean(key);
+@@ -275,11 +287,13 @@
+       }
+     }
+     buildUI() {
++      let mainTried = false;
+       this.monitors.forEach((gdkMonitor, index) => {
+-        let widget = this.getWidgetFromSharedPaintable();
+-        if (index > 0 && !widget)
++        let widget = ownPath(index) ? this.getExtraWidget(ownPath(index), index) : this.getWidgetFromSharedPaintable();
++        if (!widget && mainTried)
+           return;
+         if (!widget) {
++          mainTried = true;
+           if (!forceMediaFile && haveGstPlay) {
+             let sink = null;
+             if (preferClappersink)
+@@ -314,6 +328,46 @@
+       });
+       console.log(`using ${this.gstImplName} for video output`);
+     }
++    // Локально: отдельный плеер без звука для монитора со своим видео.
++    getExtraWidget(path, index) {
++      const sink = Gst.ElementFactory.make("gtk4paintablesink", null);
++      if (!sink?.paintable)
++        return null;
++      const picture = new Gtk.Picture({ paintable: sink.paintable, hexpand: true, vexpand: true });
++      picture.set_content_fit(contentFit);
++      this.pictures.push(picture);
++      let videoSink = sink;
++      if (useGstGL) {
++        const glsink = Gst.ElementFactory.make("glsinkbin", null);
++        if (glsink) {
++          glsink.set_property("sink", sink);
++          videoSink = glsink;
++        }
++      }
++      const play = GstPlay.Play.new(GstPlay.PlayVideoOverlayVideoRenderer.new_with_sink(null, videoSink));
++      const adapter = GstPlay.PlaySignalAdapter.new(play);
++      adapter.connect("end-of-stream", (a) => a.play.seek(0));
++      adapter.connect("error", (_a, err) => console.error(err));
++      play.mute = true;
++      play.set_uri(Gio.File.new_for_path(path).get_uri());
++      this.extraPlayers.push({ play, adapter, index });
++      play.play();
++      return picture;
++    }
++    // Мониторы со своим плеером при этом поменялись - проще перезапустить рендерер,
++    // расширение поднимет его заново.
++    maybeRestartForMonitors() {
++      const now = this.extraPlayers.map((p) => p.index).join();
++      const want = this.monitors.map((_m, i) => i).filter((i) => ownPath(i)).join();
++      if (now !== want) {
++        this.quit();
++        return;
++      }
++      this.extraPlayers.forEach((p) => {
++        p.play.set_uri(Gio.File.new_for_path(ownPath(p.index)).get_uri());
++        p.play.play();
++      });
++    }
+     getWidgetFromSharedPaintable() {
+       if (this.sharedPaintable) {
+         const picture = new Gtk.Picture({
+@@ -487,12 +541,14 @@
+       this.setPlay();
+     }
+     setPlay() {
++      this.extraPlayers?.forEach((p) => p.play.play());
+       if (this.play)
+         this.play.play();
+       else if (this.media)
+         this.media.play();
+     }
+     setPause() {
++      this.extraPlayers?.forEach((p) => p.play.pause());
+       if (this.play)
+         this.play.pause();
+       else if (this.media)

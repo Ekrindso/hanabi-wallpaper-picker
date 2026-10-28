@@ -19,14 +19,14 @@ const T = RU ? {
     sound: "Звук", pause: "Пауза под окнами на весь экран", folder: "Открыть папку с обоями",
     prefs: "Настройки Hanabi", search: "Найти обои на YouTube…", nothing: "Ничего не нашлось",
     done: "Готово, обои поставлены", bot: "YouTube требует подтверждения «я не бот» для этого ролика (так бывает через VPN). Выбери другой.", notify: "Обои", noHanabi: "Hanabi не установлен",
-    getHanabi: "Установить Hanabi…", needTools: (t) => `Для поиска установи: ${t}`,
+    getHanabi: "Установить Hanabi…", where: "Куда:", allMonitors: "Все мониторы", monitor: (n) => `Монитор ${n}`, needTools: (t) => `Для поиска установи: ${t}`,
     searching: (q) => `Ищу «${q}»…`, downloading: (t) => `Скачиваю «${t}»…`, failed: (t) => `Не удалось скачать «${t}»`,
 } : {
     title: "Video wallpapers", random: "🎲  Random wallpaper", empty: "Folder is empty - put videos into Videos/Wallpapers",
     sound: "Sound", pause: "Pause under maximized/fullscreen windows", folder: "Open wallpapers folder",
     prefs: "Hanabi settings", search: "Search wallpapers on YouTube…", nothing: "Nothing found",
     done: "Done, wallpaper applied", bot: "YouTube asks to confirm you're not a bot for this video (common over VPN). Try another one.", notify: "Wallpaper", noHanabi: "Hanabi is not installed",
-    getHanabi: "Get Hanabi…", needTools: (t) => `To search, install: ${t}`,
+    getHanabi: "Get Hanabi…", where: "Apply to:", allMonitors: "All monitors", monitor: (n) => `Monitor ${n}`, needTools: (t) => `To search, install: ${t}`,
     searching: (q) => `Searching “${q}”…`, downloading: (t) => `Downloading “${t}”…`, failed: (t) => `Failed to download “${t}”`,
 };
 const DIR = GLib.build_filenamev([GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_VIDEOS) ?? GLib.get_home_dir(),
@@ -128,14 +128,15 @@ class PickerButton extends PanelMenu.Button {
             return;
         }
         this._buildSearch();
-        const current = s.get_string("video-path");
+        const current = this._current();
         const videos = listVideos();
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(T.title));
+        this._buildMonitors();
         if (videos.length > 1) {
             const rnd = new PopupMenu.PopupMenuItem(T.random);
             rnd.connect("activate", () => {
                 const others = videos.map((n) => GLib.build_filenamev([DIR, n])).filter((v) => v !== current);
-                s.set_string("video-path", others[Math.floor(Math.random() * others.length)]);
+                this._apply(others[Math.floor(Math.random() * others.length)]);
             });
             this.menu.addMenuItem(rnd);
         }
@@ -145,7 +146,7 @@ class PickerButton extends PanelMenu.Button {
             const path = GLib.build_filenamev([DIR, name]);
             const item = thumbItem(name.replace(VIDEO, ""), this._thumbs?.[path]);
             item.setOrnament(path === current ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
-            item.connect("activate", () => s.set_string("video-path", path));
+            item.connect("activate", () => this._apply(path));
             this.menu.addMenuItem(item);
         }
 
@@ -186,6 +187,56 @@ class PickerButton extends PanelMenu.Button {
             }
         });
         this.menu.addMenuItem(prefs);
+    }
+
+    // Несколько мониторов: кому ставим обои - всем сразу или одному. Своё видео
+    // пишем в monitor-video-paths - этот ключ есть только в Hanabi с патчем из hanabi-patch/.
+    _perMonitor() {
+        return this._settings.settings_schema.has_key("monitor-video-paths");
+    }
+
+    _buildMonitors() {
+        const n = Main.layoutManager.monitors.length;
+        if (n < 2 || !this._perMonitor()) {
+            this._target = null;
+            return;
+        }
+        if (this._target >= n)
+            this._target = null;
+        const row = new PopupMenu.PopupBaseMenuItem({ reactive: false });
+        row.add_child(new St.Label({ text: T.where, y_align: Clutter.ActorAlign.CENTER }));
+        const choices = [[null, T.allMonitors], ...Array.from({ length: n }, (_v, i) => [i, T.monitor(i + 1)])];
+        for (const [target, label] of choices) {
+            const on = (this._target ?? null) === target;
+            const btn = new St.Button({ label, can_focus: true, style_class: "button",
+                style: `padding: 4px 10px; margin-left: 6px;${on ? " background-color: -st-accent-color; color: white;" : ""}` });
+            btn.connect("clicked", () => {
+                this._target = target;
+                this._build();
+            });
+            row.add_child(btn);
+        }
+        this.menu.addMenuItem(row);
+    }
+
+    _current() {
+        const s = this._settings;
+        return (this._target != null && s.get_strv("monitor-video-paths")[this._target]) || s.get_string("video-path");
+    }
+
+    _apply(path) {
+        const s = this._settings;
+        if (this._target == null) {
+            if (this._perMonitor())
+                s.set_strv("monitor-video-paths", []);
+            s.set_string("video-path", path);
+            return;
+        }
+        const list = s.get_strv("monitor-video-paths");
+        while (list.length <= this._target)
+            list.push("");
+        list[this._target] = path;
+        s.set_strv("monitor-video-paths", list);
     }
 
     // Поиск на YouTube: строка ввода, Enter - ищем, клик по результату - скачиваем
@@ -248,7 +299,7 @@ class PickerButton extends PanelMenu.Button {
             this._loading.delete(r.id);
             const path = out.split("\n").pop();
             if (ok && path) {
-                this._settings.set_string("video-path", path);
+                this._apply(path);
                 Main.notify(T.notify, T.done);
             } else {
                 Main.notify(T.notify, `${T.failed(r.title)}\n${out === "bot" ? T.bot : out}`);

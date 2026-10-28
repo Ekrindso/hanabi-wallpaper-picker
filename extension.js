@@ -18,14 +18,14 @@ const T = RU ? {
     title: "Видео-обои", random: "🎲  Случайные обои", empty: "Папка пуста - положи видео в Видео/Обои",
     sound: "Звук", pause: "Пауза под окнами на весь экран", folder: "Открыть папку с обоями",
     prefs: "Настройки Hanabi", search: "Найти обои на YouTube…", nothing: "Ничего не нашлось",
-    done: "Готово, обои поставлены", notify: "Обои", noHanabi: "Hanabi не установлен",
+    done: "Готово, обои поставлены", bot: "YouTube требует подтверждения «я не бот» для этого ролика (так бывает через VPN). Выбери другой.", notify: "Обои", noHanabi: "Hanabi не установлен",
     getHanabi: "Установить Hanabi…", needTools: (t) => `Для поиска установи: ${t}`,
     searching: (q) => `Ищу «${q}»…`, downloading: (t) => `Скачиваю «${t}»…`, failed: (t) => `Не удалось скачать «${t}»`,
 } : {
     title: "Video wallpapers", random: "🎲  Random wallpaper", empty: "Folder is empty - put videos into Videos/Wallpapers",
     sound: "Sound", pause: "Pause under maximized/fullscreen windows", folder: "Open wallpapers folder",
     prefs: "Hanabi settings", search: "Search wallpapers on YouTube…", nothing: "Nothing found",
-    done: "Done, wallpaper applied", notify: "Wallpaper", noHanabi: "Hanabi is not installed",
+    done: "Done, wallpaper applied", bot: "YouTube asks to confirm you're not a bot for this video (common over VPN). Try another one.", notify: "Wallpaper", noHanabi: "Hanabi is not installed",
     getHanabi: "Get Hanabi…", needTools: (t) => `To search, install: ${t}`,
     searching: (q) => `Searching “${q}”…`, downloading: (t) => `Downloading “${t}”…`, failed: (t) => `Failed to download “${t}”`,
 };
@@ -251,7 +251,7 @@ class PickerButton extends PanelMenu.Button {
                 this._settings.set_string("video-path", path);
                 Main.notify(T.notify, T.done);
             } else {
-                Main.notify(T.notify, T.failed(r.title));
+                Main.notify(T.notify, `${T.failed(r.title)}\n${out === "bot" ? T.bot : out}`);
             }
             if (this.menu.isOpen)
                 this._build();

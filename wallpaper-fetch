@@ -56,7 +56,10 @@ def get(vid):
                        capture_output=True, text=True, timeout=900)
     lines = p.stdout.strip().splitlines()
     if p.returncode or len(lines) < 2 or not os.path.exists(lines[-1]):
-        sys.stderr.write(p.stderr[-500:])
+        err = [l for l in p.stderr.splitlines() if "ERROR" in l]
+        msg = err[-1] if err else p.stderr.strip()[-200:]
+        # Причину - в stdout, расширение покажет её в уведомлении.
+        print("bot" if "not a bot" in msg else msg.split(":", 2)[-1].strip()[:150])
         sys.exit(1)
     title, src = lines[0], lines[-1]
     name = re.sub(r'[\\/:*?"<>|#]+', " ", title).strip()[:80] or vid
